@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lrucache"
+version = "1.0.0"
+description = "An LRU cache built from scratch on a hash map plus a doubly linked list, with a small HTTP interface."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Bageerathan Saravanakumar", email = "bageesaravanan@gmail.com" }]
+keywords = ["lru", "cache", "data-structures", "doubly-linked-list"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+
+# Deliberately empty: the cache, the server and the benchmark are pure standard
+# library, and the test suite runs on stdlib unittest. There is no
+# requirements.txt because there is nothing to install.
+dependencies = []
+
+[project.scripts]
+lrucache-server = "lrucache.__main__:main"
+
+[tool.setuptools]
+packages = ["lrucache"]
+
+# The tooling below is optional. Nothing in the project requires it to run.
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_unreachable = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
