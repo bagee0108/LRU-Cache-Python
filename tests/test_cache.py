@@ -162,6 +162,134 @@ class RecencyTests(unittest.TestCase):
         self.assertEqual(len(self.cache), 2)
 
 
+class EvictionTests(unittest.TestCase):
+    """Capacity enforcement, and that the entry evicted is the right one."""
+
+    def test_inserting_past_capacity_evicts_the_least_recently_used(self) -> None:
+        cache: LRUCache[str, int] = LRUCache(3)
+        for key in ("a", "b", "c"):
+            cache.put(key, 1)
+
+        cache.put("d", 1)
+
+        self.assertNotIn("a", cache)
+        self.assertEqual(cache.keys(), ["d", "c", "b"])
+        self.assertEqual(len(cache), 3)
+        cache._check_invariants()
+
+    def test_a_get_protects_an_entry_from_the_next_eviction(self) -> None:
+        cache: LRUCache[str, int] = LRUCache(3)
+        for key in ("a", "b", "c"):
+            cache.put(key, 1)
+
+        cache.get("a")  # "a" is no longer the oldest; "b" is
+        cache.put("d", 1)
+
+        self.assertIn("a", cache)
+        self.assertNotIn("b", cache)
+        self.assertEqual(cache.keys(), ["d", "a", "c"])
+        cache._check_invariants()
+
+    def test_each_insert_past_capacity_evicts_exactly_one_entry(self) -> None:
+        cache: LRUCache[int, int] = LRUCache(3)
+        for key in range(10):
+            cache.put(key, key)
+            self.assertLessEqual(len(cache), 3)
+
+        self.assertEqual(len(cache), 3)
+        self.assertEqual(cache.keys(), [9, 8, 7])
+        cache._check_invariants()
+
+    def test_overwriting_at_capacity_never_evicts(self) -> None:
+        cache: LRUCache[str, int] = LRUCache(2)
+        cache.put("a", 1)
+        cache.put("b", 2)
+
+        cache.put("a", 99)
+
+        self.assertEqual(len(cache), 2)
+        self.assertIn("b", cache)
+        self.assertEqual(cache.get("a"), 99)
+        cache._check_invariants()
+
+    def test_evicted_entry_is_reported_as_a_miss(self) -> None:
+        cache: LRUCache[str, int] = LRUCache(1)
+        cache.put("a", 1)
+        cache.put("b", 2)
+
+        self.assertIs(cache.get("a", MISS), MISS)
+
+    def test_an_evicted_key_can_be_inserted_again(self) -> None:
+        cache: LRUCache[str, int] = LRUCache(2)
+        for key in ("a", "b", "c"):
+            cache.put(key, 1)
+        self.assertNotIn("a", cache)
+
+        cache.put("a", 2)
+
+        self.assertEqual(cache.get("a"), 2)
+        self.assertEqual(len(cache), 2)
+        cache._check_invariants()
+
+    def test_peek_does_not_protect_an_entry_from_eviction(self) -> None:
+        cache: LRUCache[str, int] = LRUCache(2)
+        cache.put("a", 1)
+        cache.put("b", 2)
+
+        cache.peek("a")  # peek leaves recency alone, so "a" is still the victim
+        cache.put("c", 3)
+
+        self.assertNotIn("a", cache)
+        cache._check_invariants()
+
+
+class CapacityOneTests(unittest.TestCase):
+    """Capacity 1 is the tightest edge case: every insert of a new key evicts."""
+
+    def setUp(self) -> None:
+        self.cache: LRUCache[str, int] = LRUCache(1)
+
+    def tearDown(self) -> None:
+        self.cache._check_invariants()
+
+    def test_holds_a_single_entry(self) -> None:
+        self.cache.put("a", 1)
+
+        self.assertEqual(self.cache.get("a"), 1)
+        self.assertEqual(len(self.cache), 1)
+
+    def test_a_new_key_replaces_the_only_entry(self) -> None:
+        self.cache.put("a", 1)
+        self.cache.put("b", 2)
+
+        self.assertIs(self.cache.get("a", MISS), MISS)
+        self.assertEqual(self.cache.get("b"), 2)
+        self.assertEqual(len(self.cache), 1)
+        self.assertEqual(self.cache.keys(), ["b"])
+
+    def test_overwriting_the_only_entry_keeps_it(self) -> None:
+        self.cache.put("a", 1)
+        self.cache.put("a", 2)
+
+        self.assertEqual(self.cache.get("a"), 2)
+        self.assertEqual(len(self.cache), 1)
+
+    def test_repeated_churn_stays_consistent(self) -> None:
+        for key in range(25):
+            self.cache.put(str(key), key)
+            self.assertEqual(len(self.cache), 1)
+            self.cache._check_invariants()
+
+        self.assertEqual(self.cache.keys(), ["24"])
+
+    def test_get_then_replace_still_evicts_correctly(self) -> None:
+        self.cache.put("a", 1)
+        self.cache.get("a")
+        self.cache.put("b", 2)
+
+        self.assertEqual(self.cache.keys(), ["b"])
+
+
 class DeleteAndClearTests(unittest.TestCase):
     def setUp(self) -> None:
         self.cache: LRUCache[str, int] = LRUCache(4)
